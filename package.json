@@ -1,0 +1,11 @@
+{
+  "name": "kodrx-admin-email-verify",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.5.0"
+  }
+}
