@@ -1,4 +1,4 @@
-// Serverless en Vercel para marcar emailVerified=true
+// /api/verify-email.js — Vercel Serverless (Node 18, ESM)
 import admin from "firebase-admin";
 
 // Carga Service Account desde env (JSON string)
@@ -20,7 +20,6 @@ function cors(res) {
 export default async function handler(req, res) {
   cors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
-
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -33,12 +32,14 @@ export default async function handler(req, res) {
     // Verifica ID token del usuario que llama (debe ser admin)
     const decoded = await admin.auth().verifyIdToken(token);
 
-    // Política de admin: por claim o por correo permitido
+    // Política de admin: claim o email permitido por env
     const allowedAdminEmail = (process.env.ADMIN_EMAIL || "").toLowerCase();
     const isAdminClaim = decoded.role === "admin";
-    const isAdminEmail = allowedAdminEmail and (decoded.email || "").toLowerCase() == allowedAdminEmail;
+    const isAdminEmail =
+      !!allowedAdminEmail &&
+      (decoded.email || "").toLowerCase() === allowedAdminEmail;
 
-    if (!isAdminClaim and not isAdminEmail) {
+    if (!isAdminClaim && !isAdminEmail) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -48,12 +49,15 @@ export default async function handler(req, res) {
     await admin.auth().updateUser(uid, { emailVerified: true });
     const u = await admin.auth().getUser(uid);
 
-    // Opcional: espejar al perfil Firestore
-    await admin.firestore().doc(`medicos/${uid}`).set({
-      correoVerificado: true,
-      verificadoPor: decoded.email || "admin",
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    // (Opcional) espejar a Firestore
+    await admin.firestore().doc(`medicos/${uid}`).set(
+      {
+        correoVerificado: true,
+        verificadoPor: decoded.email || "admin",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     return res.status(200).json({ ok: true, emailVerified: u.emailVerified });
   } catch (e) {
@@ -61,3 +65,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: e.message || String(e) });
   }
 }
+
